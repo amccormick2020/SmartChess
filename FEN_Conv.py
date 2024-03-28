@@ -80,7 +80,6 @@ def chess_matrix_converter(binary_matrix):
 
 def sensor_to_square(row, col):
     # Assuming row and col are 0-indexed and map directly to squares
-    # Adjust if your sensor mapping is different
     file = chr(ord('a') + col)
     rank = 8 - row
     return file + str(rank)
