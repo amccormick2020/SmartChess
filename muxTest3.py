@@ -2,10 +2,34 @@
 
 import RPi.GPIO as GPIO
 import time
+from rpi_ws281x import *
 
 # Pin Definitions
 input_pins = [14, 22, 27, 17, 10, 9, 11, 0]  # Mux outputs connected here, including the new GPIO pin 22
 select_pins = [2, 3, 4]  # Mux select lines (S2, S1, S0)
+
+# Additional LED strip configuration
+
+# Assuming an 8x8 chessboard with a snake pattern LED strip
+ROWS = 8  # Chessboard rows
+COLS = 8  # Chessboard columns
+LEDs_PER_ROW = 9
+SKIPPED_LEDs_BETWEEN_ROWS = 2
+# Adjust the total LED count to match your setup
+LED_COUNT = ROWS * LEDs_PER_ROW
+
+
+LED_PIN        = 21       # GPIO pin connected to the pixels (18 uses PWM!).
+LED_FREQ_HZ    = 800000   # LED signal frequency in hertz (usually 800khz)
+LED_DMA        = 10       # DMA channel to use for generating signal (try 10)
+LED_BRIGHTNESS = 255      # Set to 0 for darkest and 255 for brightest
+LED_INVERT     = False    # True to invert the signal (when using NPN transistor level shift)
+LED_CHANNEL    = 0        # set to '1' for GPIOs 13, 19, 41, 45, or 53
+
+strip = Adafruit_NeoPixel(LED_COUNT, LED_PIN, LED_FREQ_HZ, LED_DMA, LED_INVERT, LED_BRIGHTNESS, LED_CHANNEL)
+strip.begin()
+
+
 
 # Setup GPIO
 GPIO.setmode(GPIO.BCM)
@@ -45,6 +69,26 @@ def print_4x8_matrix(sensor_values_10, sensor_values_11, sensor_values_9, sensor
         combined_row = row_14 + row_22 + row_27 + row_17  # Combine rows for a 4x8 matrix
         print(combined_row)
     print()
+def generate_8x8_matrix(sensor_values_10, sensor_values_11, sensor_values_9, sensor_values_0, sensor_values_14, sensor_values_22, sensor_values_27, sensor_values_17):
+    matrix = []  # Initialize the matrix that will hold the 8x8 grid
+    # First 4 rows
+    for i in range(4):
+        row_10 = sensor_values_10[i*2:(i+1)*2]
+        row_11 = sensor_values_11[i*2:(i+1)*2]
+        row_9 = sensor_values_9[i*2:(i+1)*2]
+        row_0 = sensor_values_0[i*2:(i+1)*2]
+        combined_row = row_10 + row_9 + row_11 + row_0  # Combine rows for a 4x8 matrix
+        matrix.append(combined_row)  # Add the combined row to the matrix
+    # Second 4 rows
+    for i in range(4):
+        row_14 = sensor_values_14[i*2:(i+1)*2]
+        row_22 = sensor_values_22[i*2:(i+1)*2]
+        row_27 = sensor_values_27[i*2:(i+1)*2]
+        row_17 = sensor_values_17[i*2:(i+1)*2]
+        combined_row = row_14 + row_22 + row_27 + row_17  # Combine rows for a 4x8 matrix
+        matrix.append(combined_row)  # Add the combined row to the matrix
+    
+    return matrix  # Return the complete 8x8 matrix
 
 def swap_values(chunk):
     # Swapping positions within each 4x2 chunk
@@ -53,32 +97,138 @@ def swap_values(chunk):
     # Swap right upper middle with right lower middle
     chunk[3], chunk[5] = chunk[5], chunk[3]
     return chunk
+def calculate_led_index(chess_row, chess_col):
+    """
+    Calculate the LED index in the strip based on the chess piece's row and column,
+    accounting for the "snake pattern" and skipped LEDs between rows.
+    """
+    # Adjust this logic based on your specific LED layout
+    row_start_index = chess_row * (LEDs_PER_ROW + SKIPPED_LEDs_BETWEEN_ROWS)
+    if chess_row % 2 == 0:  # Even rows go right to left
+        index = row_start_index + chess_col
+    else:  # Odd rows go left to right
+        index = row_start_index + (COLS - 1 - chess_col)
+    return index
+
+def update_led_for_piece(strip, chess_row, chess_col, color):
+    """
+    Update a single LED based on the chess piece's position.
+    """
+    led_index = calculate_led_index(chess_row, chess_col)
+    strip.setPixelColor(led_index, color)
+    strip.show()
+
+def calculate_led_index_from_sensor_position(sensor_position):
+    # Assuming sensors are displayed and thus mapped in a specific custom order
+    # For simplicity, let's assume an 8x8 grid, with sensors mapped row by row in the order they're displayed
+    row = (sensor_position - 1) // 8
+    col = (sensor_position - 1) % 8
+
+    # If we're in the second half of the chessboard, adjust the row index
+    if sensor_position > 32:
+        row = (sensor_position - 33) // 8 + 4  # Adjust for the second half starting at sensor 33
+        col = (sensor_position - 33) % 8
+
+    # Calculate the LED index based on the "snake pattern"
+    if row % 2 == 0:
+        # Even row: left to right in LED strip terms
+        led_index = row * LEDs_PER_ROW + col
+    else:
+        # Odd row: right to left in LED strip terms
+        led_index = row * LEDs_PER_ROW + (7 - col)
+
+    return led_index
+    
+def turn_off_all_leds(strip):
+    """Turns off all LEDs on the strip."""
+    for i in range(strip.numPixels()):
+        strip.setPixelColor(i, Color(0,0,0))
+    strip.show()
+
+def update_leds_based_on_matrix(sensor_inputs, strip):
+     # Assuming 'sensor_inputs' is a list of sensor states, with 1 indicating active and 0 inactive
+    for sensor_index, state in enumerate(sensor_inputs, start=1):
+        led_index = get_led_index(sensor_index)
+        if state == 1:
+            # Turn on the LED in red
+            strip.setPixelColor(led_index, Color(255, 0, 0))
+        else:
+            # Turn off the LED
+            strip.setPixelColor(led_index, Color(0, 0, 0))
+    strip.show()
+
+
+
+def calculate_led_index_based_on_s_pattern(row, col):
+    # Calculate the LED index based on the S-shaped configuration
+    # Flip every other row's direction to follow the S-shape
+    if row % 2 == 0:
+        # For even rows, go left to right
+        index = row * COLS + col
+    else:
+        # For odd rows, go right to left
+        index = row * COLS + (COLS - 1 - col)
+    return index
+def get_led_index(sensor_index):
+    # Custom mapping logic based on the observed pattern
+    # Example mapping based on the provided pattern, this needs to be filled out or adjusted
+    mapping = {
+        16: 0,  # Sensor 1 activates LED 30 (index 29)
+        56: 1,  # Sensor 2 activates LED 56 (index 55)
+        15: 2,  # Sensor 3 activates LED 29 (index 28)
+        55: 3,  # Sensor 4 activates LED 57 (index 56)
+        54: 5,
+        48: 19,
+        24: 18,
+	    47: 16,
+	    23: 15
+        
+        # Add further mappings here based on the pattern you've observed
+    }
+    # Return the LED index for the sensor, default to the sensor index if not specified (minus 1 to align with 0-based indexing)
+    return mapping.get(sensor_index, sensor_index - 1)
 
 def main():
-    last_sensor_values = {pin: [None] * 8 for pin in input_pins}
-    
+    time.sleep(1)  # Initial delay for setup stabilization
+
     try:
         while True:
-            current_sensor_values = {pin: [] for pin in input_pins}
-            for channel in range(8):
+            current_sensor_values = []  # Store current sensor values
+
+            for channel in range(8):  # Assuming 8 channels for the multiplexer
                 select_mux_channel(channel)
-                # Small delay to ensure the select lines have settled
-                time.sleep(0.01)
+                time.sleep(0.01)  # Allow time for the channel selection to settle
                 for pin in input_pins:
-                    current_sensor_values[pin].append(read_sensor(pin))
-                    
-            for pin in input_pins:
-                current_sensor_values[pin] = swap_values(current_sensor_values[pin])        
-            # Check if there's any change in sensor values
-            if any(current_sensor_values[pin] != last_sensor_values[pin] for pin in input_pins):
-                print_4x8_matrix(current_sensor_values[10], current_sensor_values[11], current_sensor_values[9],current_sensor_values[0], current_sensor_values[14], current_sensor_values[22], current_sensor_values[27], current_sensor_values[17])
-                last_sensor_values = current_sensor_values.copy()
-                
-            # Delay between readings
-            time.sleep(0.1)
+                    # Read each sensor connected to the current mux channel
+                    sensor_state = read_sensor(pin)
+                    current_sensor_values.append(sensor_state)
+            activated_sensors = [index + 1 for index, state in enumerate(current_sensor_values) if state == 1]
+            if activated_sensors:
+                print(f"Activated Sensors: {activated_sensors}")
+            else:
+                print("No sensors activated.")
+            # Update the LEDs directly based on current sensor values
+            for sensor_position, sensor_state in enumerate(current_sensor_values, start=1):
+                led_index = get_led_index(sensor_position)  # Get the LED index for the sensor
+                if sensor_state == 1:
+                    # If the sensor is active, light up the corresponding LED in red
+                    strip.setPixelColor(led_index, Color(255, 0, 0))
+                else:
+                    # If the sensor is inactive, turn off the corresponding LED
+                    strip.setPixelColor(led_index, Color(0, 0, 0))
+            
+            strip.show()  # Apply the update to the LED strip
+
+            time.sleep(0.1)  # Small delay to limit update speed
 
     except KeyboardInterrupt:
+        # Turn off all LEDs on exit
+        turn_off_all_leds(strip)
         GPIO.cleanup()
 
+
+
 if __name__ == "__main__":
+    strip = Adafruit_NeoPixel(LED_COUNT, LED_PIN, LED_FREQ_HZ, LED_DMA, LED_INVERT, LED_BRIGHTNESS, LED_CHANNEL)
+    strip.begin()
     main()
