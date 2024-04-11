@@ -16,7 +16,7 @@ COLS = 8  # Chessboard columns
 LEDs_PER_ROW = 9
 SKIPPED_LEDs_BETWEEN_ROWS = 2
 # Adjust the total LED count to match your setup
-LED_COUNT = ROWS * LEDs_PER_ROW
+LED_COUNT = 150
 
 
 LED_PIN        = 21       # GPIO pin connected to the pixels (18 uses PWM!).
@@ -116,7 +116,7 @@ def update_led_for_piece(strip, chess_row, chess_col, color):
     """
     led_index = calculate_led_index(chess_row, chess_col)
     strip.setPixelColor(led_index, color)
-    strip.show()
+
 
 def calculate_led_index_from_sensor_position(sensor_position):
     # Assuming sensors are displayed and thus mapped in a specific custom order
@@ -145,19 +145,6 @@ def turn_off_all_leds(strip):
         strip.setPixelColor(i, Color(0,0,0))
     strip.show()
 
-def update_leds_based_on_matrix(sensor_inputs, strip):
-     # Assuming 'sensor_inputs' is a list of sensor states, with 1 indicating active and 0 inactive
-    for sensor_index, state in enumerate(sensor_inputs, start=1):
-        led_index = get_led_index(sensor_index)
-        if state == 1:
-            # Turn on the LED in red
-            strip.setPixelColor(led_index, Color(255, 0, 0))
-        else:
-            # Turn off the LED
-            strip.setPixelColor(led_index, Color(0, 0, 0))
-    strip.show()
-
-
 
 def calculate_led_index_based_on_s_pattern(row, col):
     # Calculate the LED index based on the S-shaped configuration
@@ -170,19 +157,67 @@ def calculate_led_index_based_on_s_pattern(row, col):
         index = row * COLS + (COLS - 1 - col)
     return index
 def get_led_index(sensor_index):
-    # Custom mapping logic based on the observed pattern
-    # Example mapping based on the provided pattern, this needs to be filled out or adjusted
+    # Custom mapping logic since sensor order in array is practically random
     mapping = {
         16: 0,  # Sensor 1 activates LED 30 (index 29)
         56: 1,  # Sensor 2 activates LED 56 (index 55)
         15: 2,  # Sensor 3 activates LED 29 (index 28)
         55: 3,  # Sensor 4 activates LED 57 (index 56)
         54: 5,
-        48: 19,
+        13: 7,
+        53: 8,
+        21: 11,
+		45: 12,
+        46: 14,
+        23: 15,
+        47: 16,
         24: 18,
-	    47: 16,
-	    23: 15
-        
+        48: 19,
+
+		32: 22,
+		40: 23,
+        31: 24,
+		39: 25,
+		30: 26,
+		38: 28,
+		29: 29,
+		37: 30,
+		5: 33,
+		61: 34,
+
+		6: 35,
+
+		62: 36,
+		7: 38,
+		63: 39,
+		8: 40,
+		64: 41,
+		12: 44,
+		52: 45,
+		11: 46,
+		51: 47,
+		10: 48,
+		50: 50,
+		9: 51,
+		49: 52,
+		18: 57,
+		42: 58,
+		19: 60,
+		43: 61,
+		20: 62,
+		44: 63,
+		28: 66,
+		36: 67,
+		27: 68,
+		35: 69,
+		26: 71,
+		34: 72,
+		2: 79,
+		58: 80,
+		3: 81,
+		59: 83,
+		4: 84,
+		60: 85
         # Add further mappings here based on the pattern you've observed
     }
     # Return the LED index for the sensor, default to the sensor index if not specified (minus 1 to align with 0-based indexing)
@@ -195,36 +230,35 @@ def main():
         while True:
             current_sensor_values = []  # Store current sensor values
 
+            # Read sensor states
             for channel in range(8):  # Assuming 8 channels for the multiplexer
                 select_mux_channel(channel)
                 time.sleep(0.01)  # Allow time for the channel selection to settle
                 for pin in input_pins:
-                    # Read each sensor connected to the current mux channel
                     sensor_state = read_sensor(pin)
                     current_sensor_values.append(sensor_state)
-            activated_sensors = [index + 1 for index, state in enumerate(current_sensor_values) if state == 1]
-            if activated_sensors:
-                print(f"Activated Sensors: {activated_sensors}")
-            else:
-                print("No sensors activated.")
-            # Update the LEDs directly based on current sensor values
-            for sensor_position, sensor_state in enumerate(current_sensor_values, start=1):
-                led_index = get_led_index(sensor_position)  # Get the LED index for the sensor
-                if sensor_state == 1:
-                    # If the sensor is active, light up the corresponding LED in red
-                    strip.setPixelColor(led_index, Color(255, 0, 0))
-                else:
-                    # If the sensor is inactive, turn off the corresponding LED
-                    strip.setPixelColor(led_index, Color(0, 0, 0))
-            
-            strip.show()  # Apply the update to the LED strip
 
+            print("Activated Sensors:", [i + 1 for i, state in enumerate(current_sensor_values) if state == 1])
+
+            # First, reset all LEDs to ensure a clean state
+            for i in range(LED_COUNT):
+                strip.setPixelColor(i, Color(0, 0, 0))
+
+            # Then, set LEDs based on current sensor values
+            for sensor_position, sensor_state in enumerate(current_sensor_values, start=1):
+                led_index = get_led_index(sensor_position)
+                if sensor_state == 1:
+                    strip.setPixelColor(led_index, Color(0, 0, 150))
+
+            # Finally, apply all changes at once
+            strip.show()
             time.sleep(0.1)  # Small delay to limit update speed
 
     except KeyboardInterrupt:
         # Turn off all LEDs on exit
         turn_off_all_leds(strip)
         GPIO.cleanup()
+
 
 
 
