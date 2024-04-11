@@ -223,6 +223,21 @@ def get_led_index(sensor_index):
     # Return the LED index for the sensor, default to the sensor index if not specified (minus 1 to align with 0-based indexing)
     return mapping.get(sensor_index, sensor_index - 1)
 
+def update_leds_based_on_sensor_values(strip, sensor_values):
+    """
+    Update the LED strip based on the sensor values.
+    """
+    for sensor_position, sensor_state in enumerate(sensor_values, start=1):
+        # Calculate the LED index based on the sensor position
+        led_index = calculate_led_index_from_sensor_position(sensor_position)
+        if sensor_state == 1:
+            # If the sensor is active (magnet detected), set the LED to green
+            strip.setPixelColor(led_index, Color(0, 255, 0))  # Green color
+        else:
+            # If the sensor is not active, turn off the LED
+            strip.setPixelColor(led_index, Color(0, 0, 0))  # Turn off LED
+    strip.show()  # Update the LED strip
+    
 def main():
     time.sleep(1)  # Initial delay for setup stabilization
 
@@ -244,14 +259,11 @@ def main():
             for i in range(LED_COUNT):
                 strip.setPixelColor(i, Color(0, 0, 0))
 
-            # Then, set LEDs based on current sensor values
-            for sensor_position, sensor_state in enumerate(current_sensor_values, start=1):
-                led_index = get_led_index(sensor_position)
-                if sensor_state == 1:
-                    strip.setPixelColor(led_index, Color(0, 0, 150))
+            # Update LEDs based on sensor values
+            update_leds_based_on_sensor_values(strip, current_sensor_values)
 
             # Finally, apply all changes at once
-            strip.show()
+            # strip.show()
             time.sleep(0.1)  # Small delay to limit update speed
 
     except KeyboardInterrupt:
