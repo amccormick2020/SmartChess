@@ -14,3 +14,7 @@ This repo contains code utilized on Raspberry Pi for Senior Capstone. This code 
 9) Detecting when an opposing piece has been captured
 
 Further descriptions of the methodology, system design, hardware, and software can be found in the SmartChessboardReport.pdf
+
+
+https://github.com/user-attachments/assets/e31b419b-5d85-4ce8-9aac-ad18aa326936
+
