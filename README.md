@@ -16,5 +16,6 @@ This repo contains code utilized on Raspberry Pi for Senior Capstone. This code 
 Further descriptions of the methodology, system design, hardware, and software can be found in the SmartChessboardReport.pdf
 
 
-https://github.com/user-attachments/assets/e31b419b-5d85-4ce8-9aac-ad18aa326936
+
+https://github.com/user-attachments/assets/1db8ed88-716f-480d-b0d2-00dd3486a960
 
